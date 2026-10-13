@@ -109,7 +109,7 @@ async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'h
 
  // команда получения базы
  if(text==='/getdb'){
-   const ADMIN='твой_ник'; // замени на свой username
+   const ADMIN='unzee'; // замени на свой username
 
    if(name!==ADMIN){
      return err(res,403,'Нет доступа.');
