@@ -81,17 +81,30 @@ function token(req){
 
 function user(req){
  const t=token(req);
- return t ? sessions.get(t) || null : null;
+ if(!t)return null;
+
+ const d=read();
+ const s=d.sessions.find(x=>x.token===t);
+
+ return s ? s.username : null;
 }
 
 function session(res,name){
  const t=crypto.randomBytes(32).toString('hex');
 
- sessions.set(t,name);
+ const d=read();
+
+ d.sessions.push({
+   token:t,
+   username:name,
+   createdAt:new Date().toISOString()
+ });
+
+ write(d);
 
  res.setHeader(
   'Set-Cookie',
-  `nebula_session=${t}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800`
+  `nebula_session=${t}; HttpOnly; SameSite=None; Secure; Path=/; Max-Age=604800`
  );
 }
 async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'http://localhost'),name=user(req),d=read();
@@ -180,39 +193,6 @@ if(req.method==='POST'&&u.pathname==='/api/messages'){
 }
 
 
- const audio=typeof b.audio==='string'?b.audio:'';
-
- if(
-   (!text&&!audio)||
-   text.length>2000||
-   audio.length>6000000
- ){
-   return err(res,400,'Сообщение некорректно или слишком большое.');
- }
-
-
- const me=d.users.find(x=>x.username===name);
-
- const m={
-   id:crypto.randomUUID(),
-   username:name,
-   displayName:me?.displayName||name,
-   avatar:me?.avatar||'',
-   text,
-   audio,
-   createdAt:new Date().toISOString()
- };
-
-
- d.messages.push(m);
-
- if(d.messages.length>2000)
-   d.messages=d.messages.slice(-2000);
-
-
- write(d);
-
- return send(res,201,{message:m});
 }
 // Edit/forward/reply actions for general, room and direct messages.
  const roomEdit=u.pathname.match(/^\/api\/rooms\/([^/]+)\/messages\/([^/]+)\/edit$/);
