@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080914"><title>КОН-ЧАТ</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080914"><title>КОН-ЧАТ</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script><script src="/extras.js" defer></script></head>
 <body><div class="noise"></div><div class="ambient a1"></div><div class="ambient a2"></div><canvas id="particles"></canvas>
 <header class="topbar"><a class="brand" href="#"><span>✳</span> КОН-ЧАТ</a><div class="top-status"><i></i> ПРОСТРАНСТВО ОБЩЕНИЯ</div><div class="top-right"><small>BETA / 01</small><span class="avatar mini">K</span></div></header>
 <main class="shell">
@@ -9,8 +9,57 @@
 <div class="tabs"><button class="tab active" data-mode="login">Вход</button><button class="tab" data-mode="register">Регистрация</button></div>
 <form id="authForm"><label for="username">Имя пользователя</label><div class="input-wrap"><span>@</span><input id="username" name="username" autocomplete="username" minlength="3" maxlength="20" placeholder="например, starlight" required></div><label for="password">Пароль</label><div class="input-wrap"><span>⌑</span><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Не менее 10 символов" required><button id="togglePassword" type="button" aria-label="Показать пароль">◉</button></div><p class="hint" id="authHint">Рады снова видеть тебя в КОН-ЧАТ.</p><p class="error" id="authError" role="alert"></p><button class="submit-btn" type="submit"><span id="submitLabel">Войти</span><b>↗</b></button></form>
 <div class="privacy"><span>✧</span> Пароли защищены криптографическим хешированием.</div></div>
-<div id="chatView" class="chat-view hidden"><div class="chat-header"><div class="room-icon">✳</div><div class="room-info"><strong>Общий космос</strong><span><i></i> Общий чат · все участники</span></div><button id="logoutBtn" class="logout">Выйти ↗</button></div>
-<div class="user-strip"><span class="avatar" id="myAvatar">N</span><div><small>ТЫ В СЕТИ КАК</small><strong id="currentUsername">username</strong></div><span class="online-pill">ONLINE</span></div>
+<div id="chatView" class="chat-view hidden"><div class="telegram-layout">
+<aside class="chat-sidebar">
+<button id="menuBtn" class="menu-btn" aria-label="Открыть меню">
+<span></span><span></span><span></span>
+</button>
+<div id="sideMenuOverlay" class="side-menu-overlay"></div>
+<div id="sideMenu" class="side-menu">
+  <div class="menu-profile disabled-profile"><span class="avatar" id="menuAvatar">N</span><strong id="menuNick">Ник</strong></div>
+  <div class="menu-line"></div>
+  <button id="myProfileBtn" class="menu-action-profile"><svg class="menu-icon"><circle cx="12" cy="7" r="4"/><path d="M5 21c0-4 3-7 7-7s7 3 7 7"/></svg><span>Мой профиль</span></button>
+  <button id="createGroupBtn"><svg class="menu-icon"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M2 20c0-3 2-5 5-5h4c3 0 5 2 5 5"/></svg><span>Создать группу</span></button>
+  <button id="createChannelBtn"><svg class="menu-icon"><path d="M3 5h18v11H8l-5 4V5z"/></svg><span>Создать канал</span></button>
+  <button id="contactsBtn"><svg class="menu-icon"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-4 3-6 6-6"/></svg><span>Контакты</span></button>
+  <button id="callsBtn"><svg class="menu-icon"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.4 1.8.6 2.8.7A2 2 0 0 1 22 16.9z"/></svg><span>Звонки</span></button>
+  <button id="settingsBtn"><svg class="menu-icon"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span>Настройки</span></button>
+  <button class="night">◐ <span>Ночной режим</span><i></i></button>
+</div>
+<div class="profile-row"><span class="avatar" id="myAvatar">N</span><div><strong id="currentUsername">username</strong><small>online</small></div><button id="logoutBtn" class="logout">Выход</button></div>
+<div class="search-box"><input id="userSearch" placeholder="Поиск пользователей по нику"><button id="findUsers">⌕</button></div>
+<div id="usersFound" class="result-list"></div>
+<button id="allUsersBtn" class="all-users-btn" type="button">♙ Все пользователи</button><div class="list-heading">Чаты и группы</div><div id="groups" class="dialogs"></div><div class="list-heading">Каналы</div><div id="channels" class="dialogs"></div>
+<button class="dialog active" id="generalChatBtn"><b>✳</b><span><strong>Общий космос</strong><small>Общий чат</small></span></button>
+<button id="createChatBtn" class="create-chat-btn" title="Создать чат" aria-label="Создать чат">
+<svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M256 48C141.1 48 48 129.9 48 231c0 56.8 29.4 107.2 75.8 139.8L104 464l103.8-55.2c15.2 3.6 31.2 5.2 48.2 5.2 114.9 0 208-81.9 208-183S370.9 48 256 48Z"/>
+<path d="M160 235h192M160 300h130" stroke="currentColor" stroke-width="32" stroke-linecap="round"/>
+</svg></button>
+</aside>
+<section class="telegram-chat">
+<div class="chat-header"><div class="room-icon">✳</div><div class="room-info"><strong>Общий космос</strong><span><i></i> Общий чат · все участники</span></div></div>
 <div class="messages" id="messages"><div class="empty-state"><b>✧</b><strong>Пока тихо в космосе</strong><span>Скажи первое слово — начни разговор.</span></div></div>
-<form class="composer" id="messageForm"><textarea id="messageInput" rows="1" maxlength="2000" placeholder="Напиши что-нибудь..." aria-label="Текст сообщения" required></textarea><button class="send-btn" type="submit" aria-label="Отправить сообщение">↑</button></form><div class="chat-foot"><span>ENTER — отправить</span><span id="messageCount">0 / 2000</span></div><p class="error chat-error" id="chatError" role="alert"></p></div>
-</section></main><footer><span>KON-CHAT © 2026</span><span>BUILT FOR BETTER CONVERSATIONS <b>✦</b></span></footer></body></html>
+<form class="composer" id="messageForm"><button type="button" id="recordAudioBtn" class="audio-btn" title="Записать аудиосообщение" aria-label="Записать аудиосообщение">🎙</button><textarea id="messageInput" rows="1" maxlength="2000" placeholder="Напиши что-нибудь..." aria-label="Текст сообщения" required></textarea><button class="send-btn" type="submit" aria-label="Отправить сообщение">↑</button></form><div class="chat-foot"><span>ENTER — отправить</span><span id="messageCount">0 / 2000</span></div><p class="error chat-error" id="chatError" role="alert"></p></div>
+</section></main><footer><span>KON-CHAT © 2026</span><span>BUILT FOR BETTER CONVERSATIONS <b>✦</b></span></footer><div id="profileModal" class="modal hidden">
+<div class="modal-card profile-card">
+<div class="profile-actions"><button id="editProfile">✎</button><button id="closeProfile">✕</button></div>
+<span class="avatar big" id="profileAvatar">N</span>
+<h2 id="profileNick">Ник</h2>
+<small id="profileOnline">в сети</small><p id="profileAbout"></p>
+
+<p id="profileUsername">@username</p>
+<p id="profileBirthday"></p>
+</div></div>
+<div id="editProfileModal" class="modal hidden"><div class="modal-card edit-card"><div class="profile-actions"><button id="closeEditProfile">✕</button></div><h2>Изменение профиля</h2><input id="avatarInput" class="hidden-file" type="file" accept="image/*"><label for="avatarInput" class="avatar big" id="editAvatar">N</label><h3 id="editNickLocked">Ник</h3><small>Был(а) в сети недавно</small><textarea id="aboutMe" placeholder="О себе"></textarea><input id="newNick" placeholder="Новый ник"><input id="newUsername" placeholder="Юзернейм"><input id="birthday" placeholder="День рождения"><button id="saveProfileBtn" type="button">Сохранить</button></div></div>
+<div id="groupModal" class="modal hidden">
+<div class="modal-card"><div class="modal-top"><h2>Создать группу</h2><button class="modal-x" data-close="groupModal" aria-label="Закрыть">×</button></div>
+<input id="groupName" placeholder="Название группы"><input id="groupMembers" placeholder="Участники через запятую (ники)">
+<textarea id="groupDesc" placeholder="Описание"></textarea>
+<label class="file-label" for="groupAvatar">Выбрать файл</label><input id="groupAvatar" class="hidden-file" type="file" accept="image/*">
+<label>Тип группы</label><div id="groupTypeMenu" class="group-type-menu">
+<button type="button" class="type-option active" data-type="public">🌐 Публичная</button>
+<button type="button" class="type-option" data-type="private">🔒 Приватная</button>
+</div>
+<button id="saveGroup">Создать</button>
+<button id="closeGroup">Отмена</button></div></div><div id="channelModal" class="modal hidden"><div class="modal-card"><div class="modal-top"><h2>Создать канал</h2><button class="modal-x" data-close="channelModal" aria-label="Закрыть">×</button></div><input id="channelName" placeholder="Название канала"><textarea id="channelDesc" placeholder="Описание"></textarea><label class="file-label" for="channelAvatar">Выбрать аватар</label><input id="channelAvatar" class="hidden-file" type="file" accept="image/*"><button id="saveChannel">Создать канал</button><button id="closeChannel">Отмена</button></div></div><div id="roomSettingsModal" class="modal hidden"><div class="modal-card"><div class="modal-top"><h2>Настройки чата</h2><button class="modal-x" data-close="roomSettingsModal" aria-label="Закрыть">×</button></div><input id="roomNameInput" placeholder="Название"><textarea id="roomDescInput" placeholder="Описание"></textarea><label class="file-label" for="roomAvatarInput">Изменить аватар</label><input id="roomAvatarInput" class="hidden-file" type="file" accept="image/*"><input id="inviteUsersInput" placeholder="Пригласить ники через запятую"><input id="roomAdminsInput" placeholder="Администраторы (только владелец)"><button id="saveRoomSettings">Сохранить изменения</button><button id="deleteRoomBtn" class="danger-btn">Удалить группу/канал</button><button id="closeRoomSettings">Закрыть</button></div></div><div id="utilityModal" class="modal hidden"><div class="modal-card"><div class="profile-actions"><button id="closeUtility">✕</button></div><h2 id="utilityTitle">Настройки</h2><p id="utilityText">Выберите действие.</p><button id="utilityPrimary">ОК</button></div></div><div class="beta-version">KON-CHAT&nbsp; beta 0.2</div></body></html>
