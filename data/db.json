@@ -2,7 +2,7 @@
   "users": [
     {
       "username": "unzee",
-      "password": "123123123123",
+      "password": "scrypt$0e4da3b14d7adda4a8280bc844bf61d6$3c1d6aca46fb5c67dfcc8faff00a06cdb22b0893d691f497806bd805098c05d9273d4141160932c8456ab749dd4178d4caf02184cea3bfb937b8054aab1b0b15",
       "createdAt": "2026-10-13T11:20:43.891Z",
       "displayName": "unzee",
       "about": "",
