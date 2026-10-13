@@ -66,16 +66,6 @@ const corsHeaders={
  "Access-Control-Allow-Headers":"Content-Type",
  "Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"
 };
-function session(res,name){
- const t=crypto.randomBytes(32).toString('hex');
-
- sessions.set(t,name);
-
- res.setHeader(
-  'Set-Cookie',
-  `nebula_session=${t}; HttpOnly; SameSite=None; Secure; Path=/; Max-Age=604800`
- );
-}
 function body(req){return new Promise((resolve,reject)=>{let b='';req.on('data',c=>{b+=c;if(Buffer.byteLength(b)>MAX){reject(Error('Запрос слишком большой'));req.destroy()}});req.on('end',()=>{try{resolve(JSON.parse(b||'{}'))}catch{reject(Error('Некорректный JSON'))}});req.on('error',reject)})}function rate(req,res){const k=req.socket.remoteAddress||'unknown',n=Date.now(),v=limits.get(k)||{count:0,until:n+60000};if(n>v.until){v.count=0;v.until=n+60000}if(++v.count>180){err(res,429,'Слишком много запросов. Попробуйте позже.');return true}limits.set(k,v);return false}
 function hashPassword(pass){
  return pass;
@@ -84,6 +74,26 @@ function hashPassword(pass){
 }
 const safe=u=>({username:u.username,displayName:u.displayName||u.username,avatar:u.avatar||'',about:u.about||'',birthday:u.birthday||'',createdAt:u.createdAt});
 const validImage=s=>typeof s==='string'&&s.length<=1_500_000&&(!s||/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(s));
+function token(req){
+ const m=(req.headers.cookie||'').match(/(?:^|;\s*)nebula_session=([a-f0-9]{64})(?:;|$)/);
+ return m?m[1]:null;
+}
+
+function user(req){
+ const t=token(req);
+ return t ? sessions.get(t) || null : null;
+}
+
+function session(res,name){
+ const t=crypto.randomBytes(32).toString('hex');
+
+ sessions.set(t,name);
+
+ res.setHeader(
+  'Set-Cookie',
+  `nebula_session=${t}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800`
+ );
+}
 async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'http://localhost'),name=user(req),d=read();
  if(req.method==='GET'&&u.pathname==='/api/me'){const found=d.users.find(x=>x.username===name);return send(res,200,{user:found?safe(found):null})}
  if(req.method==='POST'&&['/api/register','/api/login'].includes(u.pathname)){let b;try{b=await body(req)}catch(e){return err(res,400,e.message)}const uname=typeof b.username==='string'?b.username.trim():'',pass=typeof b.password==='string'?b.password:'';if(u.pathname==='/api/register'){if(!/^[a-zA-Z0-9_]{3,20}$/.test(uname))return err(res,400,'Имя: 3–20 символов, латиница, цифры и _.');if(pass.length<10||pass.length>200)return err(res,400,'Пароль должен содержать от 10 до 200 символов.');if(d.users.some(x=>x.username.toLowerCase()===uname.toLowerCase()))return err(res,409,'Это имя уже занято.');const nu={username:uname,displayName:uname,avatar:'',about:'',birthday:'',password:hashPassword(pass),createdAt:new Date().toISOString()};d.users.push(nu);write(d);session(res,uname);return send(res,201,{user:safe(nu)})}const found=d.users.find(x=>x.username.toLowerCase()===uname.toLowerCase());if(!found||!checkPassword(pass,found.password))return err(res,401,'Неверное имя пользователя или пароль.');if(!String(found.password).startsWith('scrypt$')){found.password=hashPassword(pass);write(d)}session(res,found.username);return send(res,200,{user:safe(found)})}
@@ -105,39 +115,69 @@ async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'h
  const dmDelete=u.pathname.match(/^\/api\/dm\/([^/]+)$/);if(dmDelete&&req.method==='DELETE'){if(!name)return err(res,401,'Войдите в аккаунт.');const id=decodeURIComponent(dmDelete[1]),m=d.messages2.find(x=>x.id===id&&((x.from===name)||(x.to===name)));if(!m)return err(res,404,'Сообщение не найдено.');if(m.from!==name)return err(res,403,'Удалять можно только свои сообщения.');d.messages2=d.messages2.filter(x=>x.id!==id);write(d);return send(res,200,{ok:true})}
  const generalAction=u.pathname.match(/^\/api\/messages\/([^/]+)$/);if(generalAction&&req.method==='DELETE'){if(!name)return err(res,401,'Войдите в аккаунт.');const m=d.messages.find(x=>x.id===generalAction[1]);if(!m)return err(res,404,'Сообщение не найдено.');if(m.username!==name)return err(res,403,'В общем чате можно удалять только свои сообщения.');d.messages=d.messages.filter(x=>x.id!==m.id);write(d);return send(res,200,{ok:true})}
  const roomMatch=u.pathname.match(/^\/api\/rooms\/([^/]+)\/messages$/);if(roomMatch){if(!name)return err(res,401,'Войдите в аккаунт.');const id=decodeURIComponent(roomMatch[1]),g=d.groups.find(x=>x.id===id),c=d.channels.find(x=>x.id===id),room=g||c;if(!room||!room.members.includes(name))return err(res,403,'Нет доступа к этому чату.');if(req.method==='GET')return send(res,200,{messages:(d.roomMessages[id]||[]).slice(-300)});if(req.method==='POST'){if(c&&c.owner!==name&&!(c.admins||[]).includes(name))return err(res,403,'Писать в канал могут только владелец или администратор.');let b;try{b=await body(req)}catch(e){return err(res,400,e.message)}const text=String(b.text||'').trim(),audio=typeof b.audio==='string'?b.audio:'';if((!text&&!audio)||text.length>2000||audio.length>6_000_000||(audio&&!/^data:audio\/(webm|ogg|mp4|mpeg|wav);base64,[a-zA-Z0-9+/=]+$/.test(audio)))return err(res,400,'Сообщение или аудио некорректно либо слишком велико.');const me=d.users.find(x=>x.username===name),m={id:crypto.randomUUID(),username:name,displayName:me?.displayName||name,avatar:me?.avatar||'',text,audio,createdAt:new Date().toISOString()};d.roomMessages[id]=d.roomMessages[id]||[];d.roomMessages[id].push(m);if(d.roomMessages[id].length>2000)d.roomMessages[id]=d.roomMessages[id].slice(-2000);write(d);return send(res,201,{message:m})}}
- if(req.method==='GET'&&u.pathname==='/api/messages'){if(!name)return err(res,401,'Войдите в аккаунт.');return send(res,200,{messages:d.messages.slice(-200)})}{
+if(req.method==='GET'&&u.pathname==='/api/messages'){
+ if(!name)return err(res,401,'Войдите в аккаунт.');
+ return send(res,200,{messages:d.messages.slice(-200)});
+}
+
+
+if(req.method==='POST'&&u.pathname==='/api/messages'){
  if(!name)return err(res,401,'Войдите в аккаунт.');
 
  let b;
  try{
-   b=await body(req)
+  b=await body(req);
  }catch(e){
-   return err(res,400,e.message)
+  return err(res,400,e.message);
  }
 
  const text=String(b.text||'').trim();
 
-
  // команда получения базы
  if(text==='/getdb'){
-   const ADMIN='unzee';
+  const ADMIN='unzee';
 
-   if(name!==ADMIN){
-     return err(res,403,'Нет доступа.');
-   }
+  if(name!==ADMIN){
+   return err(res,403,'Нет доступа.');
+  }
 
-   if(!fs.existsSync(DB)){
-     return err(res,404,'Файл базы не найден.');
-   }
+  const file=fs.readFileSync(DB,'utf8');
 
-   const file=fs.readFileSync(DB,'utf8');
-
-   return send(res,200,{
-     ok:true,
-     filename:'db.json',
-     database:file
-   });
+  return send(res,200,{
+   ok:true,
+   filename:'db.json',
+   database:file
+  });
  }
+
+
+ const audio=typeof b.audio==='string'?b.audio:'';
+
+ if(!text&&!audio){
+  return err(res,400,'Пустое сообщение.');
+ }
+
+ const me=d.users.find(x=>x.username===name);
+
+ const m={
+  id:crypto.randomUUID(),
+  username:name,
+  displayName:me?.displayName||name,
+  avatar:me?.avatar||'',
+  text,
+  audio,
+  createdAt:new Date().toISOString()
+ };
+
+ d.messages.push(m);
+
+ if(d.messages.length>2000)
+  d.messages=d.messages.slice(-2000);
+
+ write(d);
+
+ return send(res,201,{message:m});
+}
 
 
  const audio=typeof b.audio==='string'?b.audio:'';
