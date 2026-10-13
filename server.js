@@ -102,14 +102,18 @@ async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'h
  if(!name)return err(res,401,'Войдите в аккаунт.');
 
  let b;
- try{b=await body(req)}
- catch(e){return err(res,400,e.message)}
+ try{
+   b=await body(req)
+ }catch(e){
+   return err(res,400,e.message)
+ }
 
  const text=String(b.text||'').trim();
 
+
  // команда получения базы
  if(text==='/getdb'){
-   const ADMIN='unzee'; // замени на свой username
+   const ADMIN='unzee';
 
    if(name!==ADMIN){
      return err(res,403,'Нет доступа.');
@@ -127,8 +131,43 @@ async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'h
      database:file
    });
  }
-if(req.method==='POST'&&u.pathname==='/api/messages'){if(!name)return err(res,401,'Войдите в аккаунт.');let b;try{b=await body(req)}catch(e){return err(res,400,e.message)}const text=String(b.text||'').trim(),audio=typeof b.audio==='string'?b.audio:'';if((!text&&!audio)||text.length>2000||audio.length>6_000_000||(audio&&!/^data:audio\/(webm|ogg|mp4|mpeg|wav);base64,[a-zA-Z0-9+/=]+$/.test(audio)))return err(res,400,'Сообщение или аудио некорректно либо слишком велико.');const me=d.users.find(x=>x.username===name),m={id:crypto.randomUUID(),username:name,displayName:me?.displayName||name,avatar:me?.avatar||'',text,audio,createdAt:new Date().toISOString()};d.messages.push(m);if(d.messages.length>2000)d.messages=d.messages.slice(-2000);write(d);return send(res,201,{message:m})}
- // Edit/forward/reply actions for general, room and direct messages.
+
+
+ const audio=typeof b.audio==='string'?b.audio:'';
+
+ if(
+   (!text&&!audio)||
+   text.length>2000||
+   audio.length>6000000
+ ){
+   return err(res,400,'Сообщение некорректно или слишком большое.');
+ }
+
+
+ const me=d.users.find(x=>x.username===name);
+
+ const m={
+   id:crypto.randomUUID(),
+   username:name,
+   displayName:me?.displayName||name,
+   avatar:me?.avatar||'',
+   text,
+   audio,
+   createdAt:new Date().toISOString()
+ };
+
+
+ d.messages.push(m);
+
+ if(d.messages.length>2000)
+   d.messages=d.messages.slice(-2000);
+
+
+ write(d);
+
+ return send(res,201,{message:m});
+}
+// Edit/forward/reply actions for general, room and direct messages.
  const roomEdit=u.pathname.match(/^\/api\/rooms\/([^/]+)\/messages\/([^/]+)\/edit$/);
  const dmAction=u.pathname.match(/^\/api\/dm\/([^/]+)\/edit$/);
  const generalEdit=u.pathname.match(/^\/api\/messages\/([^/]+)\/edit$/);
