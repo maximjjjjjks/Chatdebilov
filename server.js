@@ -10,7 +10,7 @@ roomMessages:{},
 signals:[],
 sessions:[]
 },null,2));
-const limits=new Map(),MAX=8*1024*1024;
+const sessions=new Map(),limits=new Map(),MAX=8*1024*1024;
 const read=()=>{try{const d=JSON.parse(fs.readFileSync(DB,'utf8'));for(const k of ['users','messages','groups','channels','messages2'])if(!Array.isArray(d[k]))d[k]=[];if(!d.roomMessages||typeof d.roomMessages!=='object')d.roomMessages={};if(!Array.isArray(d.signals))d.signals=[];if(!Array.isArray(d.sessions))d.sessions=[];return d}catch{return{users:[],messages:[],groups:[],channels:[],messages2:[],roomMessages:{}}}};
 function write(d){const t=DB+'.tmp';fs.writeFileSync(t,JSON.stringify(d,null,2),{mode:0o600});fs.renameSync(t,DB)}
 function send(res,s,d,headers={}){res.writeHead(s,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",...headers});res.end(JSON.stringify(d))}function err(res,s,error){send(res,s,{error})}
