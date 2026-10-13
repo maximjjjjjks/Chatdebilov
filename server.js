@@ -193,7 +193,6 @@ if(req.method==='POST'&&u.pathname==='/api/messages'){
 }
 
 
-}
 // Edit/forward/reply actions for general, room and direct messages.
  const roomEdit=u.pathname.match(/^\/api\/rooms\/([^/]+)\/messages\/([^/]+)\/edit$/);
  const dmAction=u.pathname.match(/^\/api\/dm\/([^/]+)\/edit$/);
