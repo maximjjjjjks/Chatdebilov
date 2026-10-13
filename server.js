@@ -5,7 +5,10 @@ const sessions=new Map(),limits=new Map(),MAX=8*1024*1024;
 const read=()=>{try{const d=JSON.parse(fs.readFileSync(DB,'utf8'));for(const k of ['users','messages','groups','channels','messages2'])if(!Array.isArray(d[k]))d[k]=[];if(!d.roomMessages||typeof d.roomMessages!=='object')d.roomMessages={};if(!Array.isArray(d.signals))d.signals=[];return d}catch{return{users:[],messages:[],groups:[],channels:[],messages2:[],roomMessages:{}}}};
 function write(d){const t=DB+'.tmp';fs.writeFileSync(t,JSON.stringify(d,null,2),{mode:0o600});fs.renameSync(t,DB)}
 function send(res,s,d,headers={}){res.writeHead(s,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",...headers});res.end(JSON.stringify(d))}function err(res,s,error){send(res,s,{error})}
-function token(req){const m=(req.headers.cookie||'').match(/(?:^|;\s*)nebula_session=([a-f0-9]{64})(?:;|$)/);return m?m[1]:null}function user(req){const t=token(req);return t?sessions.get(t)||null:null}function session(res,name){const t=crypto.randomBytes(32).toString('hex');sessions.set(t,name);res.setHeader('Set-Cookie',`nebula_session=${t}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${process.env.NODE_ENV==='production'?'; Secure':''}`)}
+function token(req){const m=(req.headers.cookie||'').match(/(?:^|;\s*)nebula_session=([a-f0-9]{64})(?:;|$)/);return m?m[1]:null}function user(req){const t=token(req);return t?sessions.get(t)||null:null}function session(res,name){const t=crypto.randomBytes(32).toString('hex');sessions.set(t,name);res.setHeader(
+'Set-Cookie',
+`nebula_session=${t}; HttpOnly; SameSite=None; Path=/; Max-Age=604800; Secure`
+);}
 function body(req){return new Promise((resolve,reject)=>{let b='';req.on('data',c=>{b+=c;if(Buffer.byteLength(b)>MAX){reject(Error('Запрос слишком большой'));req.destroy()}});req.on('end',()=>{try{resolve(JSON.parse(b||'{}'))}catch{reject(Error('Некорректный JSON'))}});req.on('error',reject)})}function rate(req,res){const k=req.socket.remoteAddress||'unknown',n=Date.now(),v=limits.get(k)||{count:0,until:n+60000};if(n>v.until){v.count=0;v.until=n+60000}if(++v.count>180){err(res,429,'Слишком много запросов. Попробуйте позже.');return true}limits.set(k,v);return false}
 function hashPassword(pass){const salt=crypto.randomBytes(16).toString('hex');return 'scrypt$'+salt+'$'+crypto.scryptSync(pass,salt,64).toString('hex')}function checkPassword(pass,stored){if(typeof stored!=='string')return false;if(stored.startsWith('scrypt$')){const [,salt,hex]=stored.split('$');try{return crypto.timingSafeEqual(crypto.scryptSync(pass,salt,64),Buffer.from(hex,'hex'))}catch{return false}}return stored===pass}
 const safe=u=>({username:u.username,displayName:u.displayName||u.username,avatar:u.avatar||'',about:u.about||'',birthday:u.birthday||'',createdAt:u.createdAt});
@@ -55,4 +58,15 @@ async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'h
   if(!name)return err(res,401,'Войдите в аккаунт.');const got=d.signals.filter(x=>x.to===name);d.signals=d.signals.filter(x=>x.to!==name&&Date.now()-new Date(x.createdAt).getTime()<120000);if(got.length)write(d);return send(res,200,{signals:got});
  }
  if(req.method==='GET'){let file=u.pathname==='/'?path.join(PUB,'index.html'):path.resolve(PUB,'.'+decodeURIComponent(u.pathname));if(!file.startsWith(PUB+path.sep))return err(res,403,'Запрещено.');return fs.readFile(file,(e,data)=>{if(e)return send(res,404,{error:'Не найдено'});const ext=path.extname(file),mime={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml'};res.writeHead(200,{'Content-Type':mime[ext]||'application/octet-stream','X-Content-Type-Options':'nosniff','Cache-Control':ext==='.html'?'no-cache':'public, max-age=300','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"});res.end(data)})}err(res,405,'Метод не поддерживается')}
-http.createServer((q,s)=>route(q,s).catch(e=>{console.error(e);if(!s.headersSent)err(s,500,'Внутренняя ошибка сервера')})).listen(PORT,HOST,()=>console.log(`KON-CHAT: http://${HOST}:${PORT}`));
+const server=http.createServer((q,s)=>{
+ route(q,s).catch(e=>{
+   console.error(e);
+   if(!s.headersSent){
+     err(s,500,'Внутренняя ошибка сервера');
+   }
+ });
+});
+
+server.listen(PORT,"0.0.0.0",()=>{
+ console.log("KON-CHAT server started on port",PORT);
+});
