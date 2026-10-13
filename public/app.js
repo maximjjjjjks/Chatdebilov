@@ -15,25 +15,50 @@ async function openGeneral(){activeRoom={type:'general',id:'',title:'Общий 
 async function openRoom(room,type){activeRoom={type,id:room.id,title:room.title,room};dmWith='';setRoomHeader(room.title,(type==='channel'?'Канал':'Группа')+' · '+(room.members?.length||1)+' участников');$('#messageInput').disabled=type==='channel'&&room.owner!==activeUsername;$('#messageInput').placeholder=$('#messageInput').disabled?'Публиковать может только владелец':'Напиши что-нибудь...';lastMessages='';await loadMessages(true);document.querySelectorAll('.dialog').forEach(x=>x.classList.remove('active'));const row=document.querySelector(`[data-room-id="${CSS.escape(room.id)}"]`);row?.classList.add('active')}
 async function openDM(username){dmWith=username;activeRoom={type:'dm',id:username,title:username};setRoomHeader(username,'личный чат');$('#messageInput').disabled=false;$('#messageInput').placeholder='Сообщение для @'+username;lastMessages='';await loadMessages(true)}
 $('#messageInput').addEventListener('input',e=>{$('#messageCount').textContent=`${e.target.value.length} / 2000`;e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,95)+'px'});$('#messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#messageForm').requestSubmit()}});
-$('#messageForm').addEventListener('submit',async e=>{e.preventDefault();const i=$('#messageInput'),text=i.value.trim();if(!text||!activeUsername)return;const b=$('.send-btn');b.disabled=true;try{if(activeRoom.type==='general')const result=await api('/api/messages',{
- method:'POST',
- body:JSON.stringify({text})
-});
+$('#messageForm').addEventListener('submit',async e=>{e.preventDefault();const i=$('#messageInput'),text=i.value.trim();if(!text||!activeUsername)return;const b=$('.send-btn');b.disabled=true;try{
 
-if(result.database){
- const blob=new Blob([result.database],{
-   type:'application/json'
+let result;
+
+if(activeRoom.type==='general'){
+
+ result=await api('/api/messages',{
+  method:'POST',
+  body:JSON.stringify({text})
  });
 
- const url=URL.createObjectURL(blob);
- const a=document.createElement('a');
+ if(result.database){
 
- a.href=url;
- a.download=result.filename;
- a.click();
+  const blob=new Blob([result.database],{
+   type:'application/json'
+  });
 
- URL.revokeObjectURL(url);
-}else if(activeRoom.type==='group'||activeRoom.type==='channel')await api('/api/rooms/'+encodeURIComponent(activeRoom.id)+'/messages',{method:'POST',body:JSON.stringify({text})});else await api('/api/dm',{method:'POST',body:JSON.stringify({to:dmWith,text})});i.value='';i.style.height='auto';$('#messageCount').textContent='0 / 2000';await loadMessages(true)}catch(e){showError($('#chatError'),e.message)}finally{b.disabled=false;i.focus()}});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+
+  a.href=url;
+  a.download=result.filename || 'db.json';
+  a.click();
+
+  URL.revokeObjectURL(url);
+
+  return;
+ }
+
+}else if(activeRoom.type==='group'||activeRoom.type==='channel'){
+
+ await api('/api/rooms/'+encodeURIComponent(activeRoom.id)+'/messages',{
+  method:'POST',
+  body:JSON.stringify({text})
+ });
+
+}else{
+
+ await api('/api/dm',{
+  method:'POST',
+  body:JSON.stringify({to:dmWith,text})
+ });
+
+}i.value='';i.style.height='auto';$('#messageCount').textContent='0 / 2000';await loadMessages(true)}catch(e){showError($('#chatError'),e.message)}finally{b.disabled=false;i.focus()}});
 async function leaveChat(){try{await api('/api/logout',{method:'POST',body:'{}'})}catch{}activeUsername='';myProfile=null;lastMessages='';$('#chatView').classList.add('hidden');document.body.classList.remove('chat-mode');$('#authView').classList.remove('hidden','auth-exit');$('#password').value='';switchMode('login')}$('#logoutBtn').addEventListener('click',leaveChat);
 async function findUsers(){try{const q=$('#userSearch').value.trim(),d=await api('/api/users?q='+encodeURIComponent(q)),box=$('#usersFound');box.replaceChildren();d.users.forEach(x=>{const b=document.createElement('button');b.className='user-result';const a=document.createElement('span');a.className='result-avatar';avatar(a,x);const txt=document.createElement('span');txt.textContent=(x.displayName||x.username)+' · @'+x.username;b.append(a,txt);b.onclick=()=>openDM(x.username);box.append(b)})}catch(e){showError($('#chatError'),e.message)}}$('#findUsers').addEventListener('click',findUsers);$('#userSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();findUsers()}});
 function addRoomRow(room,type,box){const row=document.createElement('button');row.type='button';row.className='dialog room-dialog '+(type==='channel'?'channel-dialog':'group-dialog');row.dataset.roomId=room.id;row.onclick=()=>openRoom(room,type);if(room.avatar){const im=document.createElement('img');im.className='dialog-avatar';im.src=room.avatar;im.alt='';row.append(im)}else{const a=document.createElement('b');a.textContent=(room.title||'?')[0].toUpperCase();row.append(a)}const span=document.createElement('span'),strong=document.createElement('strong'),small=document.createElement('small');strong.textContent=room.title;small.textContent=type==='channel'?'Канал':`${room.members?.length||1} участников`;span.append(strong,small);row.append(span);box.append(row)}
