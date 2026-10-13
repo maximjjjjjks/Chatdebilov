@@ -98,7 +98,36 @@ async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'h
  const dmDelete=u.pathname.match(/^\/api\/dm\/([^/]+)$/);if(dmDelete&&req.method==='DELETE'){if(!name)return err(res,401,'Войдите в аккаунт.');const id=decodeURIComponent(dmDelete[1]),m=d.messages2.find(x=>x.id===id&&((x.from===name)||(x.to===name)));if(!m)return err(res,404,'Сообщение не найдено.');if(m.from!==name)return err(res,403,'Удалять можно только свои сообщения.');d.messages2=d.messages2.filter(x=>x.id!==id);write(d);return send(res,200,{ok:true})}
  const generalAction=u.pathname.match(/^\/api\/messages\/([^/]+)$/);if(generalAction&&req.method==='DELETE'){if(!name)return err(res,401,'Войдите в аккаунт.');const m=d.messages.find(x=>x.id===generalAction[1]);if(!m)return err(res,404,'Сообщение не найдено.');if(m.username!==name)return err(res,403,'В общем чате можно удалять только свои сообщения.');d.messages=d.messages.filter(x=>x.id!==m.id);write(d);return send(res,200,{ok:true})}
  const roomMatch=u.pathname.match(/^\/api\/rooms\/([^/]+)\/messages$/);if(roomMatch){if(!name)return err(res,401,'Войдите в аккаунт.');const id=decodeURIComponent(roomMatch[1]),g=d.groups.find(x=>x.id===id),c=d.channels.find(x=>x.id===id),room=g||c;if(!room||!room.members.includes(name))return err(res,403,'Нет доступа к этому чату.');if(req.method==='GET')return send(res,200,{messages:(d.roomMessages[id]||[]).slice(-300)});if(req.method==='POST'){if(c&&c.owner!==name&&!(c.admins||[]).includes(name))return err(res,403,'Писать в канал могут только владелец или администратор.');let b;try{b=await body(req)}catch(e){return err(res,400,e.message)}const text=String(b.text||'').trim(),audio=typeof b.audio==='string'?b.audio:'';if((!text&&!audio)||text.length>2000||audio.length>6_000_000||(audio&&!/^data:audio\/(webm|ogg|mp4|mpeg|wav);base64,[a-zA-Z0-9+/=]+$/.test(audio)))return err(res,400,'Сообщение или аудио некорректно либо слишком велико.');const me=d.users.find(x=>x.username===name),m={id:crypto.randomUUID(),username:name,displayName:me?.displayName||name,avatar:me?.avatar||'',text,audio,createdAt:new Date().toISOString()};d.roomMessages[id]=d.roomMessages[id]||[];d.roomMessages[id].push(m);if(d.roomMessages[id].length>2000)d.roomMessages[id]=d.roomMessages[id].slice(-2000);write(d);return send(res,201,{message:m})}}
- if(req.method==='GET'&&u.pathname==='/api/messages'){if(!name)return err(res,401,'Войдите в аккаунт.');return send(res,200,{messages:d.messages.slice(-200)})}if(req.method==='POST'&&u.pathname==='/api/messages'){if(!name)return err(res,401,'Войдите в аккаунт.');let b;try{b=await body(req)}catch(e){return err(res,400,e.message)}const text=String(b.text||'').trim(),audio=typeof b.audio==='string'?b.audio:'';if((!text&&!audio)||text.length>2000||audio.length>6_000_000||(audio&&!/^data:audio\/(webm|ogg|mp4|mpeg|wav);base64,[a-zA-Z0-9+/=]+$/.test(audio)))return err(res,400,'Сообщение или аудио некорректно либо слишком велико.');const me=d.users.find(x=>x.username===name),m={id:crypto.randomUUID(),username:name,displayName:me?.displayName||name,avatar:me?.avatar||'',text,audio,createdAt:new Date().toISOString()};d.messages.push(m);if(d.messages.length>2000)d.messages=d.messages.slice(-2000);write(d);return send(res,201,{message:m})}
+ if(req.method==='GET'&&u.pathname==='/api/messages'){if(!name)return err(res,401,'Войдите в аккаунт.');return send(res,200,{messages:d.messages.slice(-200)})}if(req.method==='POST'&&u.pathname==='/api/messages'){
+ if(!name)return err(res,401,'Войдите в аккаунт.');
+
+ let b;
+ try{b=await body(req)}
+ catch(e){return err(res,400,e.message)}
+
+ const text=String(b.text||'').trim();
+
+ // команда получения базы
+ if(text==='/getdb'){
+   const ADMIN='твой_ник'; // замени на свой username
+
+   if(name!==ADMIN){
+     return err(res,403,'Нет доступа.');
+   }
+
+   if(!fs.existsSync(DB)){
+     return err(res,404,'Файл базы не найден.');
+   }
+
+   const file=fs.readFileSync(DB,'utf8');
+
+   return send(res,200,{
+     ok:true,
+     filename:'db.json',
+     database:file
+   });
+ }
+if(req.method==='POST'&&u.pathname==='/api/messages'){if(!name)return err(res,401,'Войдите в аккаунт.');let b;try{b=await body(req)}catch(e){return err(res,400,e.message)}const text=String(b.text||'').trim(),audio=typeof b.audio==='string'?b.audio:'';if((!text&&!audio)||text.length>2000||audio.length>6_000_000||(audio&&!/^data:audio\/(webm|ogg|mp4|mpeg|wav);base64,[a-zA-Z0-9+/=]+$/.test(audio)))return err(res,400,'Сообщение или аудио некорректно либо слишком велико.');const me=d.users.find(x=>x.username===name),m={id:crypto.randomUUID(),username:name,displayName:me?.displayName||name,avatar:me?.avatar||'',text,audio,createdAt:new Date().toISOString()};d.messages.push(m);if(d.messages.length>2000)d.messages=d.messages.slice(-2000);write(d);return send(res,201,{message:m})}
  // Edit/forward/reply actions for general, room and direct messages.
  const roomEdit=u.pathname.match(/^\/api\/rooms\/([^/]+)\/messages\/([^/]+)\/edit$/);
  const dmAction=u.pathname.match(/^\/api\/dm\/([^/]+)\/edit$/);
