@@ -59,16 +59,16 @@ const corsHeaders={
 };
 function token(req){const m=(req.headers.cookie||'').match(/(?:^|;\s*)nebula_session=([a-f0-9]{64})(?:;|$)/);return m?m[1]:null}function user(req){
  const t=token(req);
- if(!t)return null;
+ return t?sessions.get(t)||null:null;
+}function session(res,name){
+ const t=crypto.randomBytes(32).toString('hex');
+ sessions.set(t,name);
 
- const d=read();
- const s=d.sessions.find(x=>x.token===t);
-
- return s?s.username:null;
-}function session(res,name){const t=crypto.randomBytes(32).toString('hex');sessions.set(t,name);res.setHeader(
-'Set-Cookie',
-`nebula_session=${t}; HttpOnly; SameSite=None; Path=/; Max-Age=604800; Secure`
-);}
+ res.setHeader(
+  'Set-Cookie',
+  `nebula_session=${t}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800`
+ );
+}
 function body(req){return new Promise((resolve,reject)=>{let b='';req.on('data',c=>{b+=c;if(Buffer.byteLength(b)>MAX){reject(Error('Запрос слишком большой'));req.destroy()}});req.on('end',()=>{try{resolve(JSON.parse(b||'{}'))}catch{reject(Error('Некорректный JSON'))}});req.on('error',reject)})}function rate(req,res){const k=req.socket.remoteAddress||'unknown',n=Date.now(),v=limits.get(k)||{count:0,until:n+60000};if(n>v.until){v.count=0;v.until=n+60000}if(++v.count>180){err(res,429,'Слишком много запросов. Попробуйте позже.');return true}limits.set(k,v);return false}
 function hashPassword(pass){
  return pass;
