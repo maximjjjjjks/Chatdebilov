@@ -1,6 +1,6 @@
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const PORT=+(process.env.PORT||3000),HOST=process.env.HOST||'0.0.0.0',PUB=path.join(__dirname,'public'),DIR=path.join(__dirname,'data'),DB=path.join(DIR,'db.json');
-fs.mkdirSync(DIR,{recursive:true});if(!fs.existsSync(DB))fs.writeFileSync(DB,JSON.stringify({
+fs.mkdirSync(DIR,{recursive:true});console.log('DATA DIR:', DIR);console.log('DB FILE:', DB);if(!fs.existsSync(DB))fs.writeFileSync(DB,JSON.stringify({
 users:[],
 messages:[],
 groups:[],
