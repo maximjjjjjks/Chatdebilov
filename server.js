@@ -50,23 +50,30 @@ const read=()=>{
  }
 };
 function write(d){const t=DB+'.tmp';fs.writeFileSync(t,JSON.stringify(d,null,2),{mode:0o600});fs.renameSync(t,DB)}
-function send(res,s,d,headers={}){res.writeHead(s,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",...headers});res.end(JSON.stringify(d))}function err(res,s,error){send(res,s,{error})}
+function send(res,s,d,headers={}){
+res.writeHead(s,{
+'Content-Type':'application/json; charset=utf-8',
+'Cache-Control':'no-store',
+'X-Content-Type-Options':'nosniff',
+...corsHeaders,
+...headers
+});
+res.end(JSON.stringify(d))
+}function err(res,s,error){send(res,s,{error})}
 const corsHeaders={
- "Access-Control-Allow-Origin":"https://chatdebilov.onrender.com/",
+ "Access-Control-Allow-Origin":"https://chatdebilov.onrender.com",
  "Access-Control-Allow-Credentials":"true",
  "Access-Control-Allow-Headers":"Content-Type",
  "Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"
 };
-function token(req){const m=(req.headers.cookie||'').match(/(?:^|;\s*)nebula_session=([a-f0-9]{64})(?:;|$)/);return m?m[1]:null}function user(req){
- const t=token(req);
- return t?sessions.get(t)||null:null;
-}function session(res,name){
+function session(res,name){
  const t=crypto.randomBytes(32).toString('hex');
+
  sessions.set(t,name);
 
  res.setHeader(
   'Set-Cookie',
-  `nebula_session=${t}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800`
+  `nebula_session=${t}; HttpOnly; SameSite=None; Secure; Path=/; Max-Age=604800`
  );
 }
 function body(req){return new Promise((resolve,reject)=>{let b='';req.on('data',c=>{b+=c;if(Buffer.byteLength(b)>MAX){reject(Error('Запрос слишком большой'));req.destroy()}});req.on('end',()=>{try{resolve(JSON.parse(b||'{}'))}catch{reject(Error('Некорректный JSON'))}});req.on('error',reject)})}function rate(req,res){const k=req.socket.remoteAddress||'unknown',n=Date.now(),v=limits.get(k)||{count:0,until:n+60000};if(n>v.until){v.count=0;v.until=n+60000}if(++v.count>180){err(res,429,'Слишком много запросов. Попробуйте позже.');return true}limits.set(k,v);return false}
