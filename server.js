@@ -1,16 +1,43 @@
 const http=require('http'),fs=require('fs'),path=require('path'),crypto=require('crypto');
 const PORT=+(process.env.PORT||3000),HOST=process.env.HOST||'0.0.0.0',PUB=path.join(__dirname,'public'),DIR=path.join(__dirname,'data'),DB=path.join(DIR,'db.json');
-fs.mkdirSync(DIR,{recursive:true});if(!fs.existsSync(DB))fs.writeFileSync(DB,JSON.stringify({users:[],messages:[],groups:[],channels:[],messages2:[],roomMessages:{},signals:[]},null,2));
-const sessions=new Map(),limits=new Map(),MAX=8*1024*1024;
-const read=()=>{try{const d=JSON.parse(fs.readFileSync(DB,'utf8'));for(const k of ['users','messages','groups','channels','messages2'])if(!Array.isArray(d[k]))d[k]=[];if(!d.roomMessages||typeof d.roomMessages!=='object')d.roomMessages={};if(!Array.isArray(d.signals))d.signals=[];return d}catch{return{users:[],messages:[],groups:[],channels:[],messages2:[],roomMessages:{}}}};
+fs.mkdirSync(DIR,{recursive:true});if(!fs.existsSync(DB))fs.writeFileSync(DB,JSON.stringify({
+users:[],
+messages:[],
+groups:[],
+channels:[],
+messages2:[],
+roomMessages:{},
+signals:[],
+sessions:[]
+},null,2));
+const limits=new Map(),MAX=8*1024*1024;
+const read=()=>{try{const d=JSON.parse(fs.readFileSync(DB,'utf8'));for(const k of ['users','messages','groups','channels','messages2'])if(!Array.isArray(d[k]))d[k]=[];if(!d.roomMessages||typeof d.roomMessages!=='object')d.roomMessages={};if(!Array.isArray(d.signals))d.signals=[];if(!Array.isArray(d.sessions))d.sessions=[];return d}catch{return{users:[],messages:[],groups:[],channels:[],messages2:[],roomMessages:{}}}};
 function write(d){const t=DB+'.tmp';fs.writeFileSync(t,JSON.stringify(d,null,2),{mode:0o600});fs.renameSync(t,DB)}
 function send(res,s,d,headers={}){res.writeHead(s,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",...headers});res.end(JSON.stringify(d))}function err(res,s,error){send(res,s,{error})}
-function token(req){const m=(req.headers.cookie||'').match(/(?:^|;\s*)nebula_session=([a-f0-9]{64})(?:;|$)/);return m?m[1]:null}function user(req){const t=token(req);return t?sessions.get(t)||null:null}function session(res,name){const t=crypto.randomBytes(32).toString('hex');sessions.set(t,name);res.setHeader(
+const corsHeaders={
+ "Access-Control-Allow-Origin":"https://chatdebilov.onrender.com/",
+ "Access-Control-Allow-Credentials":"true",
+ "Access-Control-Allow-Headers":"Content-Type",
+ "Access-Control-Allow-Methods":"GET,POST,PUT,DELETE,OPTIONS"
+};
+function token(req){const m=(req.headers.cookie||'').match(/(?:^|;\s*)nebula_session=([a-f0-9]{64})(?:;|$)/);return m?m[1]:null}function user(req){
+ const t=token(req);
+ if(!t)return null;
+
+ const d=read();
+ const s=d.sessions.find(x=>x.token===t);
+
+ return s?s.username:null;
+}function session(res,name){const t=crypto.randomBytes(32).toString('hex');sessions.set(t,name);res.setHeader(
 'Set-Cookie',
 `nebula_session=${t}; HttpOnly; SameSite=None; Path=/; Max-Age=604800; Secure`
 );}
 function body(req){return new Promise((resolve,reject)=>{let b='';req.on('data',c=>{b+=c;if(Buffer.byteLength(b)>MAX){reject(Error('Запрос слишком большой'));req.destroy()}});req.on('end',()=>{try{resolve(JSON.parse(b||'{}'))}catch{reject(Error('Некорректный JSON'))}});req.on('error',reject)})}function rate(req,res){const k=req.socket.remoteAddress||'unknown',n=Date.now(),v=limits.get(k)||{count:0,until:n+60000};if(n>v.until){v.count=0;v.until=n+60000}if(++v.count>180){err(res,429,'Слишком много запросов. Попробуйте позже.');return true}limits.set(k,v);return false}
-function hashPassword(pass){const salt=crypto.randomBytes(16).toString('hex');return 'scrypt$'+salt+'$'+crypto.scryptSync(pass,salt,64).toString('hex')}function checkPassword(pass,stored){if(typeof stored!=='string')return false;if(stored.startsWith('scrypt$')){const [,salt,hex]=stored.split('$');try{return crypto.timingSafeEqual(crypto.scryptSync(pass,salt,64),Buffer.from(hex,'hex'))}catch{return false}}return stored===pass}
+function hashPassword(pass){
+ return pass;
+}function checkPassword(pass,stored){
+ return pass===stored;
+}
 const safe=u=>({username:u.username,displayName:u.displayName||u.username,avatar:u.avatar||'',about:u.about||'',birthday:u.birthday||'',createdAt:u.createdAt});
 const validImage=s=>typeof s==='string'&&s.length<=1_500_000&&(!s||/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(s));
 async function route(req,res){if(rate(req,res))return;const u=new URL(req.url,'http://localhost'),name=user(req),d=read();
